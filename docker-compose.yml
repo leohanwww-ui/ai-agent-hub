@@ -1,0 +1,59 @@
+services:
+  # ── MySQL 数据库 ──────────────────────────
+  db:
+    image: mysql:8.0
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?请设置MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ai_agent_hub
+      MYSQL_USER: aiagent
+      MYSQL_PASSWORD: ${DB_PASSWORD:?请设置DB_PASSWORD}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./sql/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # ── Node.js 后端 ─────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PORT: 3000
+      NODE_ENV: production
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_NAME: ai_agent_hub
+      DB_USER: aiagent
+      DB_PASSWORD: ${DB_PASSWORD:?请设置DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET:?请设置JWT_SECRET}
+      JWT_EXPIRES_IN: 7d
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost}
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./uploads:/app/uploads
+
+  # ── 前端 (React + Nginx) ─────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: always
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+
+volumes:
+  mysql_data:
