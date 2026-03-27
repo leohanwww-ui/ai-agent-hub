@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
@@ -9,8 +9,10 @@ import { forumApi } from '../api';
 import { useAuth } from '../contexts/AuthContext';
 import Avatar from '../components/Avatar';
 import TimeAgo from '../components/TimeAgo';
+import Toast from '../components/Toast';
 import ReactMarkdown from 'react-markdown';
 import type { ForumCategory, ForumPost, ForumReply } from '../types';
+import type { ToastItem } from '../components/Toast';
 
 export default function ForumPage() {
   const { t } = useTranslation();
@@ -28,6 +30,15 @@ export default function ForumPage() {
   const [replyContent, setReplyContent] = useState('');
   const [newPost, setNewPost] = useState({ title: '', content: '', categoryId: 0 });
   const [loading, setLoading] = useState(false);
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
+
+  // Toast 工具函数
+  const showToast = useCallback((type: ToastItem['type'], message: string) => {
+    setToasts(prev => [...prev, { id: Date.now(), type, message }]);
+  }, []);
+  const removeToast = useCallback((id: number) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
+  }, []);
 
   // 加载板块
   useEffect(() => {
@@ -73,6 +84,9 @@ export default function ForumPage() {
       setReplies(prev => [...prev, optimisticReply]);
       setReplyContent('');
       setCurrentPost(prev => prev ? { ...prev, reply_count: (prev.reply_count || 0) + 1 } : null);
+      showToast('success', '回复成功！');
+    } catch {
+      showToast('error', '回复失败，请稍后重试');
     } finally {
       setLoading(false);
     }
@@ -80,7 +94,18 @@ export default function ForumPage() {
 
   // 提交新帖
   const submitPost = async () => {
-    if (!newPost.title.trim() || !newPost.content.trim() || !newPost.categoryId) return;
+    if (!newPost.categoryId) {
+      showToast('warning', '请先选择板块');
+      return;
+    }
+    if (!newPost.title.trim()) {
+      showToast('warning', '请填写帖子标题');
+      return;
+    }
+    if (!newPost.content.trim()) {
+      showToast('warning', '请填写帖子内容');
+      return;
+    }
     setLoading(true);
     try {
       await forumApi.createPost({
@@ -91,6 +116,9 @@ export default function ForumPage() {
       setPosts(prev => [{ id: Date.now(), title: newPost.title, content: newPost.content, category_id: newPost.categoryId } as ForumPost, ...prev]);
       setShowNewPost(false);
       setNewPost({ title: '', content: '', categoryId: 0 });
+      showToast('success', '发帖成功！');
+    } catch {
+      showToast('error', '发帖失败，请稍后重试');
     } finally {
       setLoading(false);
     }
@@ -100,6 +128,7 @@ export default function ForumPage() {
   if (currentPost) {
     return (
       <div className="min-h-screen pt-14 max-w-4xl mx-auto px-4 py-6">
+        <Toast toasts={toasts} onRemove={removeToast} />
         <button onClick={() => setCurrentPost(null)}
           className="flex items-center gap-1.5 text-slate-400 hover:text-white text-sm mb-4 cursor-pointer transition-colors">
           <ChevronLeft size={16} />
@@ -115,6 +144,16 @@ export default function ForumPage() {
                 <Pin size={10} />{t('forum.pinned')}
               </span>
             )}
+          </div>
+
+          <div className="flex items-center gap-3 mb-4">
+            <Avatar user={{ id: currentPost.author_id || 0, username: currentPost.author_name || '匿名', avatar: currentPost.author_avatar, is_ai_agent: currentPost.author_is_ai }} size="sm" />
+            <div>
+              <span className="text-sm text-primary-400 font-medium">@{currentPost.author_name || '匿名'}</span>
+              {currentPost.author_is_ai ? (
+                <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-purple-900/40 text-purple-300 border border-purple-700/30">AI</span>
+              ) : null}
+            </div>
           </div>
 
           <div className="flex items-center gap-4 text-xs text-slate-500 mb-6 border-b border-purple-900/20 pb-4">
@@ -183,6 +222,7 @@ export default function ForumPage() {
   // 帖子列表视图
   return (
     <div className="min-h-screen pt-14">
+      <Toast toasts={toasts} onRemove={removeToast} />
       <div className="max-w-7xl mx-auto px-4 py-6 flex gap-6">
         {/* 侧边栏：板块列表 */}
         <aside className="w-52 shrink-0 hidden md:block">
@@ -237,7 +277,7 @@ export default function ForumPage() {
                 <select
                   value={newPost.categoryId}
                   onChange={e => setNewPost(p => ({ ...p, categoryId: Number(e.target.value) }))}
-                  className="input mb-3"
+                  className={`input mb-3 ${newPost.categoryId === 0 ? 'border-yellow-600/50' : ''}`}
                 >
                   <option value={0}>选择板块</option>
                   {categories.map(cat => (
@@ -301,7 +341,15 @@ export default function ForumPage() {
                         {post.title}
                       </h3>
                     </div>
-                    <p className="text-xs text-slate-500 line-clamp-1 mb-2">{post.content}</p>
+                    <p className="text-xs text-slate-500 line-clamp-1 mb-1">{post.content}</p>
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <span className="text-[11px] text-primary-400 font-medium">
+                        @{post.author_name || '匿名'}
+                      </span>
+                      {postAuthor.is_ai_agent ? (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-900/40 text-purple-300 border border-purple-700/30">AI</span>
+                      ) : null}
+                    </div>
                     <div className="flex items-center gap-3 text-[11px] text-slate-600">
                       <span className="flex items-center gap-0.5"><Eye size={11} />{post.view_count || 0}</span>
                       <span className="flex items-center gap-0.5"><MessageSquare size={11} />{post.reply_count || 0}</span>

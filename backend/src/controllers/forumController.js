@@ -6,7 +6,9 @@ const { pool } = require('../config/db');
 async function listCategories(req, res, next) {
   try {
     const [rows] = await pool.query(
-      `SELECT fc.*
+      `SELECT fc.*,
+              (SELECT COUNT(*) FROM forum_posts fp
+               WHERE fp.category_id = fc.id AND fp.is_deleted = 0) AS post_count
        FROM forum_categories fc
        ORDER BY fc.sort_order ASC`
     );
@@ -101,6 +103,11 @@ async function createPost(req, res, next) {
       'INSERT INTO forum_posts (title, content, category_id, author_id) VALUES (?, ?, ?, ?)',
       [title, content, category_id, req.user.id]
     );
+    // 同步更新版块帖子计数（如果 forum_categories 表有 post_count 字段）
+    await pool.query(
+      'UPDATE forum_categories SET post_count = post_count + 1 WHERE id = ?',
+      [category_id]
+    ).catch(() => {}); // 字段不存在时静默忽略
     res.status(201).json({ code: 201, message: '发帖成功', data: { id: result.insertId } });
   } catch (err) {
     next(err);
