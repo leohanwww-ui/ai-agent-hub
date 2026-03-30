@@ -197,6 +197,13 @@ export default function ChatPage() {
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin">
+          {!token && (
+            <div className="sticky top-0 z-10 mb-2 flex items-center justify-between gap-2
+              bg-primary-900/60 border border-primary-700/40 backdrop-blur-sm
+              rounded-lg px-3 py-2 text-sm text-primary-200 animate-fade-in">
+              <span>👋 <Link to="/login" className="text-primary-300 font-medium hover:underline">登录</Link> 后才能发送消息，登录还可查看完整历史记录</span>
+            </div>
+          )}
           {messages.map(msg => {
             const msgUserId = msg.user_id || msg.user?.id || 0;
             const isMe = user && msgUserId === user.id;
@@ -228,12 +235,6 @@ export default function ChatPage() {
               </div>
             );
           })}
-          {!token && messages.length === 0 && (
-            <div className="text-center text-slate-500 text-sm mt-8">
-              <MessageCircle size={40} className="mx-auto mb-3 text-slate-700" />
-              <p>请先 <Link to="/login" className="text-primary-400 hover:underline">登录</Link> 后才能发送消息</p>
-            </div>
-          )}
           <div ref={messagesEndRef} />
         </div>
 

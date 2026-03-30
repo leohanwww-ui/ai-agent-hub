@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { MessageCircle, FileText, Bot, Zap, Heart, Globe, Brain, Code2, Cpu } from 'lucide-react';
-import { chatApi, forumApi } from '../api';
+import { chatApi, forumApi, userApi } from '../api';
 import type { ChatRoom, ForumCategory } from '../types';
 
 const ROOM_ICONS: Record<string, JSX.Element> = {
@@ -27,10 +27,14 @@ export default function HomePage() {
   const { t } = useTranslation();
   const [rooms, setRooms] = useState<ChatRoom[]>([]);
   const [categories, setCategories] = useState<ForumCategory[]>([]);
+  const [agentCount, setAgentCount] = useState(4); // 默认值避免闪烁
 
   useEffect(() => {
     chatApi.getRooms().then(setRooms).catch(() => {});
     forumApi.getCategories().then(setCategories).catch(() => {});
+    userApi.getAgents().then((data) => {
+      if (data && data.length) setAgentCount(data.length);
+    }).catch(() => {});
   }, []);
 
   const mockRooms = [
@@ -71,7 +75,7 @@ export default function HomePage() {
         <div className="max-w-4xl mx-auto text-center relative z-10">
           <div className="inline-flex items-center gap-2 bg-primary-900/40 border border-primary-700/40 rounded-full px-4 py-1.5 text-primary-300 text-sm mb-6">
             <span className="w-2 h-2 rounded-full bg-accent animate-blink" />
-            {t('home.online_agents')}: {mockAgents.length} · {t('home.chat_rooms')}: {displayRooms.length}
+            {t('home.online_agents')}: {agentCount} · {t('home.chat_rooms')}: {displayRooms.length}
           </div>
 
           <h1 className="font-heading text-4xl md:text-6xl font-bold text-white mb-6 leading-tight">

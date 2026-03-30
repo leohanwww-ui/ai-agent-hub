@@ -91,7 +91,7 @@ export default function Navbar() {
             <div className="flex items-center gap-2">
               <Link to="/profile" className="flex items-center gap-2 nav-item px-2 py-1.5">
                 <div className="w-6 h-6 rounded-full bg-gradient-to-br from-primary-600 to-primary-400 flex items-center justify-center text-[10px] text-white font-bold">
-                  {user?.isAiAgent ? '🤖' : user?.username?.[0]?.toUpperCase()}
+                  {(user?.is_ai_agent || user?.isAiAgent) ? '🤖' : user?.username?.[0]?.toUpperCase()}
                 </div>
                 <span className="text-xs hidden sm:block text-slate-300">{user?.username}</span>
               </Link>

@@ -14,6 +14,16 @@ import ReactMarkdown from 'react-markdown';
 import type { ForumCategory, ForumPost, ForumReply } from '../types';
 import type { ToastItem } from '../components/Toast';
 
+// icon key → emoji，用于下拉选项显示
+const CAT_EMOJI: Record<string, string> = {
+  megaphone: '📢',
+  heart: '💖',
+  cpu: '💻',
+  eye: '👁',
+  feather: '✍️',
+  'help-circle': '❓',
+};
+
 export default function ForumPage() {
   const { t } = useTranslation();
   const [searchParams] = useSearchParams();
@@ -30,6 +40,8 @@ export default function ForumPage() {
   const [replyContent, setReplyContent] = useState('');
   const [newPost, setNewPost] = useState({ title: '', content: '', categoryId: 0 });
   const [loading, setLoading] = useState(false);
+  const [liked, setLiked] = useState(false);
+  const [likeLoading, setLikeLoading] = useState(false);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
 
   // Toast 工具函数
@@ -54,6 +66,7 @@ export default function ForumPage() {
 
   // 打开帖子详情（后端 getPost 返回 data 包含 replies 数组）
   const openPost = async (post: ForumPost) => {
+    setLiked(false);
     try {
       const data = await forumApi.getPost(post.id) as ForumPost;
       setCurrentPost(data);
@@ -61,6 +74,28 @@ export default function ForumPage() {
     } catch {
       setCurrentPost(post);
       setReplies([]);
+    }
+  };
+
+  // 点赞/取消点赞
+  const toggleLike = async () => {
+    if (!currentPost || !isLoggedIn) {
+      showToast('warning', '请先登录后再点赞');
+      return;
+    }
+    setLikeLoading(true);
+    try {
+      const res = await forumApi.likePost(currentPost.id) as { data: { liked: boolean } };
+      const isLiked = res.data?.liked ?? !liked;
+      setLiked(isLiked);
+      setCurrentPost(prev => prev ? {
+        ...prev,
+        like_count: (prev.like_count || 0) + (isLiked ? 1 : -1),
+      } : null);
+    } catch {
+      showToast('error', '操作失败，请重试');
+    } finally {
+      setLikeLoading(false);
     }
   };
 
@@ -113,7 +148,18 @@ export default function ForumPage() {
         title: newPost.title,
         content: newPost.content,
       });
-      setPosts(prev => [{ id: Date.now(), title: newPost.title, content: newPost.content, category_id: newPost.categoryId } as ForumPost, ...prev]);
+      setPosts(prev => [{
+        id: Date.now(),
+        title: newPost.title,
+        content: newPost.content,
+        category_id: newPost.categoryId,
+        author_id: user?.id,
+        author_name: user?.username,
+        author_avatar: user?.avatar,
+        author_is_ai: user?.is_ai_agent,
+        created_at: new Date().toISOString(),
+        view_count: 0, reply_count: 0, like_count: 0,
+      } as ForumPost, ...prev]);
       setShowNewPost(false);
       setNewPost({ title: '', content: '', categoryId: 0 });
       showToast('success', '发帖成功！');
@@ -159,7 +205,15 @@ export default function ForumPage() {
           <div className="flex items-center gap-4 text-xs text-slate-500 mb-6 border-b border-purple-900/20 pb-4">
             <span className="flex items-center gap-1"><Eye size={12} />{currentPost.view_count || 0}</span>
             <span className="flex items-center gap-1"><MessageSquare size={12} />{currentPost.reply_count || 0}</span>
-            <span className="flex items-center gap-1"><Heart size={12} />{currentPost.like_count || 0}</span>
+            <button
+              onClick={toggleLike}
+              disabled={likeLoading}
+              className={`flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50
+                ${liked ? 'text-red-400 hover:text-red-300' : 'text-slate-500 hover:text-red-400'}`}
+            >
+              <Heart size={12} className={liked ? 'fill-current' : ''} />
+              {currentPost.like_count || 0}
+            </button>
             <TimeAgo date={currentPost.created_at || ''} />
           </div>
 
@@ -173,7 +227,7 @@ export default function ForumPage() {
           <h2 className="text-sm font-semibold text-slate-400">
             {t('forum.replies')} ({replies.length})
           </h2>
-          {replies.map((reply, i) => {
+            {replies.map((reply, i) => {
             const replyUser = { id: reply.user_id, username: reply.username || '匿名', avatar: reply.avatar, is_ai_agent: reply.is_ai_agent };
             return (
               <div key={reply.id} className="card p-4 flex gap-3 animate-fade-in">
@@ -182,7 +236,11 @@ export default function ForumPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-2">
-                    <span className="text-xs text-slate-400">#{i + 1}</span>
+                    <span className="text-xs text-primary-400 font-medium">@{reply.username || '匿名'}</span>
+                    {reply.is_ai_agent ? (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-900/40 text-purple-300 border border-purple-700/30">AI</span>
+                    ) : null}
+                    <span className="text-xs text-slate-600">#{i + 1}</span>
                     <TimeAgo date={reply.created_at || ''} />
                   </div>
                   <div className="prose prose-invert prose-xs max-w-none text-slate-300 text-sm">
@@ -281,7 +339,9 @@ export default function ForumPage() {
                 >
                   <option value={0}>选择板块</option>
                   {categories.map(cat => (
-                    <option key={cat.id} value={cat.id}>{cat.icon} {cat.name}</option>
+                    <option key={cat.id} value={cat.id}>
+                      {CAT_EMOJI[cat.icon || ''] || '📂'} {cat.name}
+                    </option>
                   ))}
                 </select>
                 <input

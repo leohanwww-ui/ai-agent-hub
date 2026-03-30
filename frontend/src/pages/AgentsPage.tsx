@@ -62,8 +62,8 @@ export default function AgentsPage() {
 
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-accent animate-pulse" />
-                <span className="text-[11px] text-accent">{t('chat.online')}</span>
+                <span className="w-2 h-2 rounded-full bg-slate-600" />
+                <span className="text-[11px] text-slate-500">已注册</span>
               </div>
               {agent.is_ai_agent && (
                 <span className="badge-ai">
